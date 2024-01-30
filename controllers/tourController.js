@@ -1,5 +1,13 @@
 const Tour = require('../models/tourModel')
 
+exports.getTopCheapTours = (req, res, next) => {
+  req.query.limit = '5'
+  req.query.sort = '-ratingsAverage,price'
+  req.query.fields = 'name,difficulty,price,summary,ratingsAverage'
+
+  next()
+}
+
 exports.getAllTours = async (req, res) => {
   try {
     const queryObj = { ...req.query }
@@ -10,7 +18,7 @@ exports.getAllTours = async (req, res) => {
     queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`)
     console.log(JSON.parse(queryStr))
 
-    let query = Tour.find(JSON.parse(queryStr), { price: 1, createdAt: 1 })
+    let query = Tour.find(JSON.parse(queryStr))
 
     console.log(queryObj, req.query)
 
@@ -28,6 +36,19 @@ exports.getAllTours = async (req, res) => {
       query = query.select('-__v')
     }
 
+    const page = +req.query.page || 1
+    const limit = +req.query.limit || 100
+
+    const skip = (page - 1) * limit
+    query = query.skip(skip).limit(limit)
+
+    if (req.query.page) {
+      const numTours = await Tour.countDocuments()
+      if (skip >= numTours) {
+        throw new Error('This page does not exist!')
+      }
+    }
+
     const tours = await query
 
     res.status(200).json({
@@ -38,7 +59,7 @@ exports.getAllTours = async (req, res) => {
       },
     })
   } catch (error) {
-    res.status(404).json({ status: 'fail', message: 'Internal server error!' })
+    res.status(404).json({ status: 'fail', message: error.message })
   }
 }
 
